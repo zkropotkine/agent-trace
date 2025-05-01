@@ -1,0 +1,24 @@
+mode: set
+github.com/zkropotkine/agent-trace/assembler/assembler.go:13.57,15.16 2 0
+github.com/zkropotkine/agent-trace/assembler/assembler.go:15.16,17.3 1 0
+github.com/zkropotkine/agent-trace/assembler/assembler.go:19.2,27.17 5 0
+github.com/zkropotkine/agent-trace/cmd/main.go:11.13,21.42 5 0
+github.com/zkropotkine/agent-trace/cmd/main.go:21.42,23.3 1 0
+github.com/zkropotkine/agent-trace/internal/handler/trace_handler.go:18.68,20.2 1 0
+github.com/zkropotkine/agent-trace/internal/handler/trace_handler.go:22.54,24.49 2 0
+github.com/zkropotkine/agent-trace/internal/handler/trace_handler.go:24.49,27.3 2 0
+github.com/zkropotkine/agent-trace/internal/handler/trace_handler.go:28.2,31.16 3 0
+github.com/zkropotkine/agent-trace/internal/handler/trace_handler.go:31.16,35.3 3 0
+github.com/zkropotkine/agent-trace/internal/handler/trace_handler.go:37.2,37.61 1 0
+github.com/zkropotkine/agent-trace/internal/router/router.go:13.50,18.2 3 0
+github.com/zkropotkine/agent-trace/internal/router/routes.go:7.61,9.2 2 0
+github.com/zkropotkine/agent-trace/internal/router/routes.go:9.2,12.3 1 0
+github.com/zkropotkine/agent-trace/internal/router/trace_routes.go:7.67,9.2 1 0
+github.com/zkropotkine/agent-trace/internal/repository/mongo_trace_repo.go:14.66,18.2 1 0
+github.com/zkropotkine/agent-trace/internal/repository/mongo_trace_repo.go:20.90,23.2 2 0
+github.com/zkropotkine/agent-trace/internal/db/mongo.go:11.56,15.16 4 0
+github.com/zkropotkine/agent-trace/internal/db/mongo.go:15.16,17.3 1 0
+github.com/zkropotkine/agent-trace/internal/db/mongo.go:18.2,18.20 1 0
+github.com/zkropotkine/agent-trace/config/config.go:17.27,19.59 2 1
+github.com/zkropotkine/agent-trace/config/config.go:19.59,21.3 1 0
+github.com/zkropotkine/agent-trace/config/config.go:23.2,23.13 1 1
