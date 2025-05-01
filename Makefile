@@ -15,3 +15,7 @@ cover-html: coverage
 # Clean generated files
 clean:
 	rm -f coverage.out
+	
+# Run pre-push checks manually
+check:
+	lefthook run pre-push
