@@ -1,0 +1,38 @@
+name: Test and Coverage
+
+# Only run when code is pushed to main (after PR merge) we are poor and without runs
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.24
+
+      - name: Run tests with coverage
+        run: |
+          make coverage
+          go tool cover -func=coverage.out
+          
+          # Extract coverage percentage
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total test coverage: ${COVERAGE}%"
+          
+          # Fail if coverage is below threshold
+          REQUIRED=70.0
+          if (( $(echo "$COVERAGE < $REQUIRED" | bc -l) )); then
+            echo "❌ Test coverage is below ${REQUIRED}%"
+            exit 1
+          else
+            echo "✅ Coverage OK"
+          fi

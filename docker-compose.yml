@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:6
+    container_name: agent-trace-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  agent-trace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-trace-app
+    restart: on-failure
+    depends_on:
+      - mongo
+    environment:
+      AGENT_TRACE_PORT: ":8080"
+      AGENT_TRACE_MONGO_URI: "mongodb://mongo:27017"
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: go run ./cmd/main.go
+
+volumes:
+  mongo_data:

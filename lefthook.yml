@@ -1,0 +1,10 @@
+pre-push:
+  parallel: true
+  skip_empty: false  # Run commands even if there are no matching files
+  commands:
+    go-test:
+      run: go test ./... -v
+    go-vet:
+      run: go vet ./...
+    go-fmt:
+      run: test -z "$(gofmt -l .)" || (echo "Run go fmt!" && exit 1)
