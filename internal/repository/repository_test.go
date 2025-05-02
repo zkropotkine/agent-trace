@@ -78,10 +78,10 @@ func TestMongoTraceRepository_GetByID(t *testing.T) {
 		objID, _ := primitive.ObjectIDFromHex(id)
 
 		mt.AddMockResponses(mtest.CreateCursorResponse(1, "agentTrace.traces", mtest.FirstBatch, bson.D{
-			{"_id", objID},
-			{"traceId", "1"},
-			{"agentName", "B"},
-			{"timestamp", time.Now().UTC()},
+			{Key: "_id", Value: objID},
+			{Key: "traceId", Value: "1"},
+			{Key: "agentName", Value: "B"},
+			{Key: "timestamp", Value: time.Now().UTC()},
 		}))
 
 		res, err := r.GetByID(context.Background(), id)
@@ -122,9 +122,9 @@ func TestMongoTraceRepository_GetTraces(t *testing.T) {
 				ns,
 				mtest.FirstBatch,
 				bson.D{
-					{"traceId", "1"},
-					{"agentName", "A"},
-					{"timestamp", time.Now().UTC()},
+					{Key: "traceId", Value: "1"},
+					{Key: "agentName", Value: "A"},
+					{Key: "timestamp", Value: time.Now().UTC()},
 				},
 			),
 			mtest.CreateCursorResponse(
