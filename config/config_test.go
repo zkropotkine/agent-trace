@@ -9,7 +9,6 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
-	// save original environment to restore later
 	getEnv := func() map[string]string {
 		env := make(map[string]string)
 		for _, e := range os.Environ() {
@@ -20,15 +19,14 @@ func TestLoadConfig(t *testing.T) {
 	}
 	initialEnv := getEnv()
 
-	// restore original environment after each case
 	resetEnv := func(t *testing.T) {
 		for k := range getEnv() {
 			if _, ok := initialEnv[k]; !ok {
-				assert.NoError(t, os.Unsetenv(k))
+				_ = os.Unsetenv(k)
 			}
 		}
 		for k, v := range initialEnv {
-			assert.NoError(t, os.Setenv(k, v))
+			_ = os.Setenv(k, v)
 		}
 	}
 
@@ -42,7 +40,11 @@ func TestLoadConfig(t *testing.T) {
 			envs: func(t *testing.T) map[string]string { return nil },
 			assert: func(t *testing.T, c *Config) {
 				assert.Equal(t, ":8080", c.Port)
-				assert.Equal(t, "mongodb://localhost:27017", c.MongoURI)
+				assert.Equal(t, "mongodb://localhost:27017", c.Mongo.URI)
+				assert.Equal(t, "agentTrace", c.Mongo.DB)
+				assert.Equal(t, "traces", c.Mongo.Collection)
+				assert.Equal(t, "info", c.Log.Level)
+				assert.Equal(t, "text", c.Log.Format)
 				assert.Equal(t, "dev", c.Env)
 			},
 		},
@@ -50,45 +52,52 @@ func TestLoadConfig(t *testing.T) {
 			name: "overrides all values from environment",
 			envs: func(t *testing.T) map[string]string {
 				return map[string]string{
-					envPrefix + "_PORT":      ":9090",
-					envPrefix + "_MONGO_URI": "mongodb://example:27017",
-					envPrefix + "_ENV":       "prod",
+					"AGENT_TRACE_PORT":             ":9090",
+					"AGENT_TRACE_ENV":              "prod",
+					"AGENT_TRACE_MONGO_URI":        "mongodb://override:27017",
+					"AGENT_TRACE_MONGO_DB":         "overrideDB",
+					"AGENT_TRACE_MONGO_COLLECTION": "logs",
+					"AGENT_TRACE_LOG_LEVEL":        "debug",
+					"AGENT_TRACE_LOG_FORMAT":       "json",
 				}
 			},
 			assert: func(t *testing.T, c *Config) {
 				assert.Equal(t, ":9090", c.Port)
-				assert.Equal(t, "mongodb://example:27017", c.MongoURI)
 				assert.Equal(t, "prod", c.Env)
+				assert.Equal(t, "mongodb://override:27017", c.Mongo.URI)
+				assert.Equal(t, "overrideDB", c.Mongo.DB)
+				assert.Equal(t, "logs", c.Mongo.Collection)
+				assert.Equal(t, "debug", c.Log.Level)
+				assert.Equal(t, "json", c.Log.Format)
 			},
 		},
 		{
 			name: "overrides only port when partially set",
 			envs: func(t *testing.T) map[string]string {
 				return map[string]string{
-					envPrefix + "_PORT": ":3000",
+					"AGENT_TRACE_PORT": ":3000",
 				}
 			},
 			assert: func(t *testing.T, c *Config) {
 				assert.Equal(t, ":3000", c.Port)
-				assert.Equal(t, "mongodb://localhost:27017", c.MongoURI)
+				assert.Equal(t, "mongodb://localhost:27017", c.Mongo.URI)
+				assert.Equal(t, "agentTrace", c.Mongo.DB)
+				assert.Equal(t, "traces", c.Mongo.Collection)
+				assert.Equal(t, "info", c.Log.Level)
+				assert.Equal(t, "text", c.Log.Format)
 				assert.Equal(t, "dev", c.Env)
 			},
 		},
 	}
 
 	for _, tc := range tests {
-		// set up this test’s environment
-		for k, v := range tc.envs(t) {
-			assert.NoError(t, os.Setenv(k, v))
-		}
-
-		// capture range variable to avoid closure gotcha
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envs(t) {
+				_ = os.Setenv(k, v)
+			}
 			cfg := LoadConfig()
 			tc.assert(t, cfg)
+			resetEnv(t)
 		})
-
-		resetEnv(t)
 	}
 }

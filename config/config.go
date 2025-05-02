@@ -9,9 +9,21 @@ import (
 const envPrefix = "AGENT_TRACE"
 
 type Config struct {
-	Port     string `envconfig:"PORT" default:":8080"`
-	MongoURI string `envconfig:"MONGO_URI" default:"mongodb://localhost:27017" split_words:"true"`
-	Env      string `envconfig:"ENV" default:"dev"` // e.g. dev, prod
+	Env   string `envconfig:"ENV" default:"dev"`
+	Log   Log    `envconfig:"LOG"`
+	Mongo Mongo  `envconfig:"MONGO"`
+	Port  string `envconfig:"PORT" default:":8080"`
+}
+
+type Mongo struct {
+	URI        string `envconfig:"URI" default:"mongodb://localhost:27017"`
+	DB         string `envconfig:"DB" default:"agentTrace"`
+	Collection string `envconfig:"COLLECTION" default:"traces"`
+}
+
+type Log struct {
+	Format string `envconfig:"FORMAT" default:"text"`
+	Level  string `envconfig:"LEVEL" default:"info"`
 }
 
 func LoadConfig() *Config {

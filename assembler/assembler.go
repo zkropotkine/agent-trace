@@ -1,6 +1,7 @@
 package assembler
 
 import (
+	"context"
 	"log"
 
 	"github.com/zkropotkine/agent-trace/config"
@@ -10,14 +11,18 @@ import (
 	"github.com/zkropotkine/agent-trace/internal/router"
 )
 
-func BuildApp(cfg *config.Config) *router.RouteRegistry {
-	client, err := db.NewMongoClient(cfg.MongoURI)
+func BuildApp(ctx context.Context, cfg *config.Config) *router.RouteRegistry {
+	mongo := cfg.Mongo
+
+	client, err := db.NewMongoClient(mongo.URI)
 	if err != nil {
 		log.Fatalf("failed to connect to MongoDB: %v", err)
 	}
 
-	database := client.Database("agentTrace")
-	traceRepo := repository.NewMongoTraceRepository(database)
+	dbClient := client.Database(mongo.DB)
+	collection := dbClient.Collection(mongo.Collection)
+
+	traceRepo := repository.NewMongoTraceRepository(collection)
 	traceHandler := handler.NewTraceHandler(traceRepo)
 
 	registry := &router.RouteRegistry{

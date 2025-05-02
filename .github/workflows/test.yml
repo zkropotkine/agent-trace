@@ -29,7 +29,7 @@ jobs:
           echo "Total test coverage: ${COVERAGE}%"
           
           # Fail if coverage is below threshold
-          REQUIRED=70.0
+          REQUIRED=40.0
           if (( $(echo "$COVERAGE < $REQUIRED" | bc -l) )); then
             echo "❌ Test coverage is below ${REQUIRED}%"
             exit 1

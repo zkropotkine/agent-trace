@@ -11,9 +11,9 @@ type mongoTraceRepository struct {
 	collection *mongo.Collection
 }
 
-func NewMongoTraceRepository(db *mongo.Database) TraceRepository {
+func NewMongoTraceRepository(collection *mongo.Collection) TraceRepository {
 	return &mongoTraceRepository{
-		collection: db.Collection("traces"),
+		collection: collection,
 	}
 }
 
