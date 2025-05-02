@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/zkropotkine/agent-trace/internal/handler"
 	"github.com/zkropotkine/agent-trace/internal/model"
+	"github.com/zkropotkine/agent-trace/internal/repository"
 )
 
 type mockTraceRepo struct {
@@ -23,6 +25,16 @@ type mockTraceRepo struct {
 func (m *mockTraceRepo) InsertTrace(ctx context.Context, trace model.Trace) error {
 	args := m.Called(ctx, trace)
 	return args.Error(0)
+}
+
+func (m *mockTraceRepo) GetTraces(ctx context.Context, filter repository.TraceFilter) ([]model.Trace, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).([]model.Trace), args.Error(1)
+}
+
+func (m *mockTraceRepo) GetByID(ctx context.Context, id string) (*model.Trace, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(*model.Trace), args.Error(1)
 }
 
 func TestPostTrace(t *testing.T) {
@@ -89,6 +101,58 @@ func TestPostTrace(t *testing.T) {
 			repo.AssertExpectations(t)
 		})
 	}
+}
+
+func TestGetTracesRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	now := time.Now().UTC()
+
+	repo := new(mockTraceRepo)
+	repo.On("GetTraces", mock.Anything, mock.MatchedBy(func(f repository.TraceFilter) bool {
+		return f.AgentName == "test-agent"
+	})).Return([]model.Trace{{TraceID: "1", AgentName: "test-agent", Timestamp: now}}, nil)
+
+	h := handler.NewTraceHandler(repo)
+	r := gin.New()
+	rg := RouteRegistry{TraceHandler: h}
+	RegisterRoutes(r, rg)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/traces?agent=test-agent", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var res struct {
+		Traces []model.Trace `json:"traces"`
+	}
+	err := json.Unmarshal(rec.Body.Bytes(), &res)
+	assert.NoError(t, err)
+	assert.Len(t, res.Traces, 1)
+	assert.Equal(t, "1", res.Traces[0].TraceID)
+	assert.Equal(t, "test-agent", res.Traces[0].AgentName)
+}
+
+func TestGetTraceByIDRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("not found", func(t *testing.T) {
+		repo := new(mockTraceRepo)
+		repo.On("GetByID", mock.Anything, "missing").Return((*model.Trace)(nil), errors.New("not found"))
+
+		h := handler.NewTraceHandler(repo)
+		r := gin.New()
+		rg := RouteRegistry{TraceHandler: h}
+		RegisterRoutes(r, rg)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/traces/missing", nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.JSONEq(t, `{"error":"trace not found"}`, rec.Body.String())
+		repo.AssertExpectations(t)
+	})
 }
 
 func TestRegisterRoutes(t *testing.T) {

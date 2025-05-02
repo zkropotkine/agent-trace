@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,15 +12,15 @@ import (
 	"github.com/zkropotkine/agent-trace/internal/repository"
 )
 
-type traceHandlerImpl struct {
+type traceHandler struct {
 	repo repository.TraceRepository
 }
 
 func NewTraceHandler(repo repository.TraceRepository) TraceHandler {
-	return &traceHandlerImpl{repo: repo}
+	return &traceHandler{repo: repo}
 }
 
-func (h *traceHandlerImpl) PostTrace(c *gin.Context) {
+func (h *traceHandler) PostTrace(c *gin.Context) {
 	var trace model.Trace
 	if err := c.ShouldBindJSON(&trace); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid trace payload"})
@@ -35,4 +36,57 @@ func (h *traceHandlerImpl) PostTrace(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "trace saved"})
+}
+
+func (h *traceHandler) GetTraces(c *gin.Context) {
+	agent := c.Query("agent")
+	fromStr := c.Query("from")
+	toStr := c.Query("to")
+	limitStr := c.DefaultQuery("limit", "50")
+	offsetStr := c.DefaultQuery("offset", "0")
+
+	var from, to *time.Time
+	if fromStr != "" {
+		parsed, err := time.Parse(time.RFC3339, fromStr)
+		if err == nil {
+			from = &parsed
+		}
+	}
+	if toStr != "" {
+		parsed, err := time.Parse(time.RFC3339, toStr)
+		if err == nil {
+			to = &parsed
+		}
+	}
+
+	limit, _ := strconv.ParseInt(limitStr, 10, 64)
+	offset, _ := strconv.ParseInt(offsetStr, 10, 64)
+
+	filter := repository.TraceFilter{
+		AgentName: agent,
+		From:      from,
+		To:        to,
+		Limit:     limit,
+		Offset:    offset,
+	}
+
+	traces, err := h.repo.GetTraces(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch traces"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"traces": traces})
+}
+
+func (h *traceHandler) GetTraceByID(c *gin.Context) {
+	id := c.Param("id")
+
+	trace, err := h.repo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "trace not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, trace)
 }
