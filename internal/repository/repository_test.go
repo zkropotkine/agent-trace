@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/zkropotkine/agent-trace/internal/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/integration/mtest"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/zkropotkine/agent-trace/internal/model"
 )
 
 func TestMongoTraceRepository_InsertTrace(t *testing.T) {
@@ -64,5 +65,78 @@ func TestMongoTraceRepository_InsertTrace(t *testing.T) {
 
 		assert.Error(t, err, "Expected an error but got none")
 		assert.Contains(t, err.Error(), "duplicate key error")
+	})
+}
+
+func TestMongoTraceRepository_GetByID(t *testing.T) {
+	mt := mtest.New(t, mtest.NewOptions().ClientType(mtest.Mock))
+
+	mt.Run("success", func(mt *mtest.T) {
+		r := NewMongoTraceRepository(mt.Coll)
+
+		id := "64b0c2f4e13c0000aa000000"
+		objID, _ := primitive.ObjectIDFromHex(id)
+
+		mt.AddMockResponses(mtest.CreateCursorResponse(1, "agentTrace.traces", mtest.FirstBatch, bson.D{
+			{"_id", objID},
+			{"traceId", "1"},
+			{"agentName", "B"},
+			{"timestamp", time.Now().UTC()},
+		}))
+
+		res, err := r.GetByID(context.Background(), id)
+		assert.NoError(t, err)
+		assert.Equal(t, "1", res.TraceID)
+	})
+
+	mt.Run("invalid id", func(mt *mtest.T) {
+		r := NewMongoTraceRepository(mt.Coll)
+
+		_, err := r.GetByID(context.Background(), "invalid")
+		assert.Error(t, err)
+		assert.EqualError(t, err, "the provided hex string is not a valid ObjectID")
+	})
+
+	mt.Run("not found", func(mt *mtest.T) {
+		r := NewMongoTraceRepository(mt.Coll)
+
+		id := "64b0c2f4e13c0000aa001234"
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, "agentTrace.traces", mtest.FirstBatch))
+
+		_, err := r.GetByID(context.Background(), id)
+		assert.Error(t, err)
+	})
+}
+
+func TestMongoTraceRepository_GetTraces(t *testing.T) {
+	mt := mtest.New(t, mtest.NewOptions().ClientType(mtest.Mock))
+
+	mt.Run("success with filter", func(mt *mtest.T) {
+		r := NewMongoTraceRepository(mt.Coll)
+
+		ns := mt.Coll.Database().Name() + "." + mt.Coll.Name()
+
+		mt.AddMockResponses(
+			mtest.CreateCursorResponse(
+				1,
+				ns,
+				mtest.FirstBatch,
+				bson.D{
+					{"traceId", "1"},
+					{"agentName", "A"},
+					{"timestamp", time.Now().UTC()},
+				},
+			),
+			mtest.CreateCursorResponse(
+				0,
+				ns,
+				mtest.NextBatch,
+			),
+		)
+
+		res, err := r.GetTraces(context.Background(), TraceFilter{AgentName: "A", Limit: 10, Offset: 0})
+		assert.NoError(t, err)
+		assert.Len(t, res, 1)
+		assert.Equal(t, "1", res[0].TraceID)
 	})
 }
