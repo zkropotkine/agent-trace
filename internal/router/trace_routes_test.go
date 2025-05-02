@@ -120,7 +120,7 @@ func TestGetTracesRoute(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/traces?agent=test-agent", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
-	
+
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	var res struct {
