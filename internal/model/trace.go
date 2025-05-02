@@ -12,20 +12,21 @@ type SubStep struct {
 }
 
 type TokenUsage struct {
-	Input  int `json:"input_tokens" bson:"input_tokens"`
-	Output int `json:"output_tokens" bson:"output_tokens"`
+	Input  int `json:"input_tokens" bson:"inputTokens"`
+	Output int `json:"output_tokens" bson:"outputTokens"`
 	Total  int `json:"total" bson:"total"`
 }
 
 type Trace struct {
-	TraceID     string     `json:"trace_id" bson:"trace_id"`
-	SessionID   string     `json:"session_id" bson:"session_id"`
-	AgentName   string     `json:"agent_name" bson:"agent_name"`
+	TraceID     string     `json:"trace_id" bson:"traceId"`
+	SessionID   string     `json:"session_id" bson:"sessionId"`
+	AgentName   string     `json:"agent_name" bson:"agentName"`
 	Timestamp   time.Time  `json:"timestamp" bson:"timestamp"`
 	Status      string     `json:"status" bson:"status"`
-	InputPrompt string     `json:"input_prompt" bson:"input_prompt"`
+	InputPrompt string     `json:"input_prompt" bson:"inputPrompt"`
 	Output      string     `json:"output" bson:"output"`
-	LatencyMS   int        `json:"latency_ms" bson:"latency_ms"`
-	TokenUsage  TokenUsage `json:"token_usage" bson:"token_usage"`
+	LatencyMS   int        `json:"latency_ms" bson:"latencyMs"`
+	TokenUsage  TokenUsage `json:"token_usage" bson:"tokenUsage"`
 	SubSteps    []SubStep  `json:"substeps" bson:"substeps"`
+	CreatedAt   time.Time  `json:"created_at" bson:"createdAt"`
 }
