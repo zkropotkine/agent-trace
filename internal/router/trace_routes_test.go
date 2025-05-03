@@ -18,6 +18,14 @@ import (
 	"github.com/zkropotkine/agent-trace/internal/repository"
 )
 
+var validTrace = model.Trace{
+	TraceID:      "xyz789",
+	AgentName:    "TestAgent",
+	InputPrompt:  "Hello",
+	OutputPrompt: "Hi there",
+	Model:        "gpt-4-turbo",
+}
+
 type mockTraceRepo struct {
 	mock.Mock
 }
@@ -49,7 +57,7 @@ func TestPostTrace(t *testing.T) {
 	}{
 		{
 			name:           "Valid trace",
-			input:          model.Trace{TraceID: "123", AgentName: "AgentX"},
+			input:          validTrace,
 			repoReturn:     nil,
 			expectedStatus: http.StatusCreated,
 			expectedBody:   `{"message":"trace saved"}`,
@@ -63,7 +71,7 @@ func TestPostTrace(t *testing.T) {
 		},
 		{
 			name:           "Repo error",
-			input:          model.Trace{TraceID: "fail", AgentName: "AgentX"},
+			input:          validTrace,
 			repoReturn:     errors.New("db error"),
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   `{"error":"failed to save trace"}`,
@@ -165,10 +173,9 @@ func TestRegisterRoutes(t *testing.T) {
 	r := gin.New()
 	RegisterRoutes(r, registry)
 
-	reqBody := model.Trace{TraceID: "xyz789", AgentName: "TestAgent"}
-	body, _ := json.Marshal(reqBody)
+	body, _ := json.Marshal(validTrace)
 	repo.On("InsertTrace", mock.Anything, mock.MatchedBy(func(t model.Trace) bool {
-		return t.TraceID == reqBody.TraceID && t.AgentName == reqBody.AgentName
+		return t.TraceID == validTrace.TraceID && t.AgentName == validTrace.AgentName
 	})).Return(nil).Once()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/traces", bytes.NewBuffer(body))

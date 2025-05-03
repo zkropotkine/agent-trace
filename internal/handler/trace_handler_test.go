@@ -73,14 +73,31 @@ func TestPostTraceRoutes(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   `{"error":"failed to save trace"}`,
 		},
+		{
+			name: "repo error",
+			input: model.Trace{
+				TraceID:      "fail",
+				AgentName:    "TestAgent",
+				InputPrompt:  "Hello",
+				OutputPrompt: "Hi there",
+				Model:        "gpt-4-turbo-nonexistent",
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   `{"error":"failed to analyze tokens"}`,
+			mockReturn:     nil,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := new(mockTraceRepo)
-			repo.On("InsertTrace", mock.Anything, mock.MatchedBy(func(tr model.Trace) bool {
-				return tr.TraceID == tt.input.TraceID && tr.AgentName == tt.input.AgentName
-			})).Return(tt.mockReturn)
+
+			// TODO improve this code
+			if !(tt.mockReturn == nil && tt.expectedStatus == http.StatusInternalServerError) {
+				repo.On("InsertTrace", mock.Anything, mock.MatchedBy(func(tr model.Trace) bool {
+					return tr.TraceID == tt.input.TraceID && tr.AgentName == tt.input.AgentName
+				})).Return(tt.mockReturn)
+			}
 
 			h := NewTraceHandler(repo)
 			r := gin.New()
@@ -129,54 +146,76 @@ func TestPostTraceRoutes(t *testing.T) {
 
 func TestGetTracesHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	now := time.Now().UTC()
-	tests := []struct {
-		name           string
-		path           string
-		setupMock      func(repo *mockTraceRepo)
-		expectedStatus int
-		assertBody     func(t *testing.T, body []byte)
-	}{
-		{
-			name: "returns filtered traces",
-			path: "/api/traces?agent=test-agent",
-			setupMock: func(repo *mockTraceRepo) {
-				repo.On("GetTraces", mock.Anything, mock.MatchedBy(func(f repository.TraceFilter) bool {
-					return f.AgentName == "test-agent"
-				})).Return([]model.Trace{{TraceID: "1", AgentName: "test-agent", Timestamp: now}}, nil)
-			},
-			expectedStatus: http.StatusOK,
-			assertBody: func(t *testing.T, body []byte) {
-				var result map[string][]model.Trace
-				err := json.Unmarshal(body, &result)
-				assert.NoError(t, err)
-				assert.Len(t, result["traces"], 1)
-				assert.Equal(t, "test-agent", result["traces"][0].AgentName)
-			},
-		},
-	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo := new(mockTraceRepo)
-			if tt.setupMock != nil {
-				tt.setupMock(repo)
-			}
-			h := NewTraceHandler(repo)
-			r := gin.New()
-			r.GET("/api/traces", h.GetTraces)
+	t.Run("query params from/to/limit/offset covered", func(t *testing.T) {
+		repo := new(mockTraceRepo)
+		h := NewTraceHandler(repo)
 
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
-			resp := httptest.NewRecorder()
-			r.ServeHTTP(resp, req)
-
-			assert.Equal(t, tt.expectedStatus, resp.Code)
-			if tt.assertBody != nil {
-				tt.assertBody(t, resp.Body.Bytes())
-			}
-			repo.AssertExpectations(t)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			ctx := logger.WithLogger(c.Request.Context(), logger.NewLogRusLogger(config.Log{}))
+			c.Request = c.Request.WithContext(ctx)
+			c.Next()
 		})
-	}
+		r.GET("/traces", h.GetTraces)
+
+		now := time.Now().UTC().Format(time.RFC3339)
+		repo.On("GetTraces", mock.Anything, mock.MatchedBy(func(f repository.TraceFilter) bool {
+			return f.AgentName == "agent1" && f.From != nil && f.To != nil && f.Limit == 10 && f.Offset == 5
+		})).Return([]model.Trace{}, nil)
+
+		req := httptest.NewRequest(http.MethodGet, "/traces?agent=agent1&from="+now+"&to="+now+"&limit=10&offset=5", nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.JSONEq(t, `{"traces":[]}`, rec.Body.String())
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("repo error handling", func(t *testing.T) {
+		repo := new(mockTraceRepo)
+		h := NewTraceHandler(repo)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			ctx := logger.WithLogger(c.Request.Context(), logger.NewLogRusLogger(config.Log{}))
+			c.Request = c.Request.WithContext(ctx)
+			c.Next()
+		})
+		r.GET("/traces", h.GetTraces)
+
+		repo.On("GetTraces", mock.Anything, mock.Anything).Return([]model.Trace(nil), errors.New("db fail"))
+		req := httptest.NewRequest(http.MethodGet, "/traces", nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.JSONEq(t, `{"error":"failed to fetch traces"}`, rec.Body.String())
+	})
+
+	t.Run("default limit and offset", func(t *testing.T) {
+		repo := new(mockTraceRepo)
+		h := NewTraceHandler(repo)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			ctx := logger.WithLogger(c.Request.Context(), logger.NewLogRusLogger(config.Log{}))
+			c.Request = c.Request.WithContext(ctx)
+			c.Next()
+		})
+		r.GET("/traces", h.GetTraces)
+
+		repo.On("GetTraces", mock.Anything, mock.MatchedBy(func(f repository.TraceFilter) bool {
+			return f.Limit == 50 && f.Offset == 0
+		})).Return([]model.Trace{}, nil)
+
+		req := httptest.NewRequest(http.MethodGet, "/traces", nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.JSONEq(t, `{"traces":[]}`, rec.Body.String())
+		repo.AssertExpectations(t)
+	})
 }
 
 func TestGetTraceByIDHandler(t *testing.T) {
