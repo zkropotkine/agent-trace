@@ -1,12 +1,13 @@
 package handler
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/zkropotkine/agent-trace/pkg/logger"
+	"github.com/zkropotkine/agent-trace/pkg/tokens"
 
 	"github.com/zkropotkine/agent-trace/internal/model"
 	"github.com/zkropotkine/agent-trace/internal/repository"
@@ -21,6 +22,10 @@ func NewTraceHandler(repo repository.TraceRepository) TraceHandler {
 }
 
 func (h *traceHandler) PostTrace(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	log := logger.FromContext(ctx)
+
 	var trace model.Trace
 	if err := c.ShouldBindJSON(&trace); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid trace payload"})
@@ -28,7 +33,22 @@ func (h *traceHandler) PostTrace(c *gin.Context) {
 	}
 	trace.Timestamp = time.Now()
 
-	err := h.repo.InsertTrace(c.Request.Context(), trace)
+	info, err := tokens.Analyze(trace.InputPrompt, trace.OutputPrompt, trace.Model)
+
+	if err != nil {
+		log.Error("Error analyzing tokens:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to analyze tokens"})
+		return
+	}
+
+	trace.TokenUsage = model.TokenUsage{
+		Input:         info.InputTokens,
+		Output:        info.OutputTokens,
+		Total:         info.TotalTokens,
+		EstimatedCost: info.EstimatedCost,
+	}
+
+	err = h.repo.InsertTrace(c.Request.Context(), trace)
 	if err != nil {
 		log.Println(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save trace"})

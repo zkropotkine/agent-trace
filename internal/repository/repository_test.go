@@ -26,16 +26,16 @@ func TestMongoTraceRepository_InsertTrace(t *testing.T) {
 		mt.AddMockResponses(mtest.CreateCursorResponse(1, "foo.bar", mtest.FirstBatch, insertResponse))
 
 		trace := model.Trace{
-			TraceID:     "test-trace-123",
-			SessionID:   "test-session-123",
-			AgentName:   "TestAgent",
-			Status:      "success",
-			InputPrompt: "Test prompt",
-			Output:      "Test output",
-			LatencyMS:   100,
-			TokenUsage:  model.TokenUsage{Input: 10, Output: 20, Total: 30},
-			CreatedAt:   time.Now(),
-			SubSteps:    []model.SubStep{},
+			TraceID:      "test-trace-123",
+			SessionID:    "test-session-123",
+			AgentName:    "TestAgent",
+			Status:       "success",
+			InputPrompt:  "Test prompt",
+			OutputPrompt: "Test output",
+			LatencyMS:    100,
+			TokenUsage:   model.TokenUsage{Input: 10, Output: 20, Total: 30},
+			CreatedAt:    time.Now(),
+			SubSteps:     []model.SubStep{},
 		}
 
 		repo := NewMongoTraceRepository(mt.Coll)

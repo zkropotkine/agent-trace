@@ -13,8 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/zkropotkine/agent-trace/config"
 	"github.com/zkropotkine/agent-trace/internal/model"
 	"github.com/zkropotkine/agent-trace/internal/repository"
+	"github.com/zkropotkine/agent-trace/pkg/logger"
 )
 
 type mockTraceRepo struct {
@@ -36,34 +38,38 @@ func (m *mockTraceRepo) GetByID(ctx context.Context, id string) (*model.Trace, e
 	return args.Get(0).(*model.Trace), args.Error(1)
 }
 
-func TestPostTrace(t *testing.T) {
+func TestPostTraceRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name           string
-		input          interface{}
-		repoReturn     error
+		input          model.Trace
+		mockReturn     error
 		expectedStatus int
 		expectedBody   string
 	}{
 		{
-			name:           "Valid trace",
-			input:          model.Trace{TraceID: "123", AgentName: "AgentX"},
-			repoReturn:     nil,
+			name: "valid trace",
+			input: model.Trace{
+				TraceID:      "xyz789",
+				AgentName:    "TestAgent",
+				InputPrompt:  "Hello",
+				OutputPrompt: "Hi there",
+				Model:        "gpt-4-turbo",
+			},
+			mockReturn:     nil,
 			expectedStatus: http.StatusCreated,
 			expectedBody:   `{"message":"trace saved"}`,
 		},
 		{
-			name:           "Invalid JSON",
-			input:          "{invalid_json}",
-			repoReturn:     nil,
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `{"error":"invalid trace payload"}`,
-		},
-		{
-			name:           "Repo error",
-			input:          model.Trace{TraceID: "fail", AgentName: "AgentX"},
-			repoReturn:     errors.New("db error"),
+			name: "repo error",
+			input: model.Trace{
+				TraceID:      "fail",
+				AgentName:    "TestAgent",
+				InputPrompt:  "Hello",
+				OutputPrompt: "Hi there",
+				Model:        "gpt-4-turbo",
+			},
+			mockReturn:     errors.New("db error"),
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   `{"error":"failed to save trace"}`,
 		},
@@ -72,38 +78,53 @@ func TestPostTrace(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := new(mockTraceRepo)
-			h := NewTraceHandler(repo)
+			repo.On("InsertTrace", mock.Anything, mock.MatchedBy(func(tr model.Trace) bool {
+				return tr.TraceID == tt.input.TraceID && tr.AgentName == tt.input.AgentName
+			})).Return(tt.mockReturn)
 
-			r := gin.Default()
+			h := NewTraceHandler(repo)
+			r := gin.New()
+			r.Use(func(c *gin.Context) {
+				ctx := logger.WithLogger(c.Request.Context(), logger.NewLogRusLogger(config.Log{}))
+				c.Request = c.Request.WithContext(ctx)
+				c.Next()
+			})
 			r.POST("/trace", h.PostTrace)
 
-			var req *http.Request
+			body, _ := json.Marshal(tt.input)
+			req := httptest.NewRequest(http.MethodPost, "/trace", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
 
-			switch input := tt.input.(type) {
-			case string: // raw invalid JSON
-				req = httptest.NewRequest(http.MethodPost, "/trace", bytes.NewBufferString(input))
-			default:
-				body, _ := json.Marshal(input)
-				req = httptest.NewRequest(http.MethodPost, "/trace", bytes.NewBuffer(body))
-				if trace, ok := input.(model.Trace); ok && tt.repoReturn != nil {
-					repo.On("InsertTrace", mock.Anything, mock.MatchedBy(func(t model.Trace) bool {
-						return t.TraceID == trace.TraceID && t.AgentName == trace.AgentName
-					})).Return(tt.repoReturn).Once()
-				} else if trace, ok := input.(model.Trace); ok {
-					repo.On("InsertTrace", mock.Anything, mock.MatchedBy(func(t model.Trace) bool {
-						return t.TraceID == trace.TraceID && t.AgentName == trace.AgentName
-					})).Return(nil).Once()
-				}
-			}
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
 
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.expectedStatus, w.Code)
-			assert.JSONEq(t, tt.expectedBody, w.Body.String())
+			assert.Equal(t, tt.expectedStatus, rec.Code)
+			assert.JSONEq(t, tt.expectedBody, rec.Body.String())
 			repo.AssertExpectations(t)
 		})
 	}
+
+	t.Run("invalid json", func(t *testing.T) {
+		repo := new(mockTraceRepo)
+		h := NewTraceHandler(repo)
+
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			ctx := logger.WithLogger(c.Request.Context(), logger.NewLogRusLogger(config.Log{}))
+			c.Request = c.Request.WithContext(ctx)
+			c.Next()
+		})
+		r.POST("/trace", h.PostTrace)
+
+		req := httptest.NewRequest(http.MethodPost, "/trace", bytes.NewBufferString("{invalid_json}"))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, `{"error":"invalid trace payload"}`, rec.Body.String())
+		repo.AssertExpectations(t)
+	})
 }
 
 func TestGetTracesHandler(t *testing.T) {
